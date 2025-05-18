@@ -27,6 +27,10 @@
 #include "string.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "MoRTOS.h"
+#include "MoRTOS_cli.h"
+#include "MoRTOS_wifi.h"
+#include "MoRTOS_led.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,352 +62,22 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-// UART3发送字符串函数
-void UART3_SendString(char* str)
-{
-    HAL_UART_Transmit(&huart3, (uint8_t*)str, strlen(str), 50);
-}
-
-
-u8 rx_pointer , rx_data;
-u8 rx_buff[500];
-u32 rx_tick = 0;
-
-
-# define  false 0
-# define  true 1
-	
-u8 wifi_rx_buff[256];
-u8 wifi_rx_pointer = 0;
-u8 wifi_connected = false;
-char wifi_ssid[32] = {0};
-char wifi_password[32] = {0};
-char server_ip[16] = "192.168.1.100"; // 默认服务器IP
-u16 server_port = 8080;              // 默认端口
-u8 tcp_connected = false;
-u8 transparent_mode = false;
-
-
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	  if(huart->Instance == USART1)
     {
-			rx_tick = uwTick;
-			HAL_UART_Receive_IT(&huart1, &rx_data, 1);
-			
-
-			if(rx_data >= 32 && rx_data <= 126 || rx_data == '\r' || rx_data == '\n')
-			{
-					rx_buff[rx_pointer++] = rx_data;
-					HAL_UART_Transmit(&huart1, (u8 *)&rx_data, 1, 50);
-			}
-
-			else if(rx_data == 8 || rx_data == 127)
-			{
-					if(rx_pointer > 0)
-					{
-							rx_pointer--;
-							rx_buff[rx_pointer] = 0;
-							// 
-							printf("\b \b");
-					}
-			}
-			// 
+			CLI_UARTCallback(huart);
     }
 		
 		else if(huart->Instance == USART3)
 		{
-				wifi_rx_buff[wifi_rx_pointer++] = rx_data;
-				
-				// 检查是否收到完整响应（以\n结尾）
-				if(rx_data == '\n' || wifi_rx_pointer >= sizeof(wifi_rx_buff)-1)
-				{
-						wifi_rx_buff[wifi_rx_pointer] = '\0';
-						printf("\r\nESP8266: %s", wifi_rx_buff);
-						
-						// 检查连接状态
-						if(strstr((char*)wifi_rx_buff, "WIFI CONNECTED") != NULL) {
-								wifi_connected = true;
-						}
-						else if(strstr((char*)wifi_rx_buff, "WIFI DISCONNECT") != NULL) {
-								wifi_connected = false;
-						}
-						else if(strstr((char*)wifi_rx_buff, "CONNECT") != NULL) {
-								tcp_connected = true;
-						}
-						else if(strstr((char*)wifi_rx_buff, "CLOSED") != NULL) {
-								tcp_connected = false;
-								transparent_mode = false;
-						}
-						else if(strstr((char*)wifi_rx_buff, "ERROR") != NULL) {
-								transparent_mode = false;
-						}
-						
-						wifi_rx_pointer = 0;
-				}
-				
-				HAL_UART_Receive_IT(&huart3, &rx_data, 1);
+			
 		}	
 
 		
 		
 		
 }
-
-void RX_proc()
-{
-    if(uwTick - rx_tick < 50) return;  // 
-    rx_tick = uwTick;
-    
-    if(rx_pointer > 0)
-    {
-
-        if(rx_buff[rx_pointer-1] == '\r' || rx_buff[rx_pointer-1] == '\n')
-        {
-
-            rx_buff[rx_pointer-1] = '\0';
-            
-
-            printf("\r\n");
-            
-            char *cmd = strtok((char*)rx_buff, " ");  
-            char *param = strtok(NULL, " ");         
-            
-            if(cmd == NULL) {
-                printf(">> ");
-                rx_pointer = 0;
-                memset(rx_buff, 0, sizeof(rx_buff));
-                return;
-            }
-
-
-            if(strcmp(cmd, "help") == 0)
-            {
-                printf("Available commands:\r\n");
-                printf("  help                - Show this help message\r\n");
-                printf("  version             - Show version information\r\n");
-                printf("  clear               - Clear screen\r\n");
-                printf("  can [init/send/get] - CAN bus operations\r\n");
-                printf("  wifi [scan/connect] - WiFi operations\r\n");
-                printf("  rs485 [send/recv]   - RS485 operations\r\n");
-                printf("  uart [config/send]  - UART operations\r\n");
-                printf("  pwm [start/stop]    - PWM control\r\n");
-                printf("  adc [start/read]    - ADC operations\r\n");
-                printf("  i2c [scan/read]     - I2C operations\r\n");
-                printf("  spi [init/transfer] - SPI operations\r\n");
-								printf("  led [number] [on/off] - Led operations\r\n");
-                printf("  sysinfo             - Show system information\r\n");
-            }
-						else if(strcmp(cmd, "led") == 0)
-						{
-								if(param == NULL) {
-										printf("LED usage: led [blue/red] [on/off]\r\n");
-								} else {
-										char *state = strtok(NULL, " ");
-										if(state == NULL) {
-												printf("Please specify LED state [on/off]\r\n");
-												return;
-										}
-
-										if(strcmp(param, "blue") == 0) {
-												if(strcmp(state, "on") == 0) {
-														HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_RESET);  // �͵�ƽ����
-														printf("Blue LED turned on\r\n");
-												} else if(strcmp(state, "off") == 0) {
-														HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_SET);    // �ߵ�ƽϨ��
-														printf("Blue LED turned off\r\n");
-												} else {
-														printf("Invalid state: %s\r\n", state);
-												}
-										}
-										else if(strcmp(param, "red") == 0) {
-												if(strcmp(state, "on") == 0) {
-														HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_RESET);  // �͵�ƽ����
-														printf("Red LED turned on\r\n");
-												} else if(strcmp(state, "off") == 0) {
-														HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_SET);    // �ߵ�ƽϨ��
-														printf("Red LED turned off\r\n");
-												} else {
-														printf("Invalid state: %s\r\n", state);
-												}
-										}
-										else {
-												printf("Unknown LED color: %s\r\n", param);
-										}
-								}
-						}
-            else if(strcmp(cmd, "can") == 0)
-            {
-                if(param == NULL) {
-                    printf("CAN usage: can [init/send/get]\r\n");
-                } else if(strcmp(param, "init") == 0) {
-                    printf("Initializing CAN...\r\n");
-                    // TODO: CAN
-                } else if(strcmp(param, "send") == 0) {
-                    printf("Sending CAN message...\r\n");
-                    // TODO: CAN
-                } else if(strcmp(param, "get") == 0) {
-                    printf("Getting CAN message...\r\n");
-                    // TODO: CAN
-                } else {
-                    printf("Unknown CAN command: %s\r\n", param);
-                }
-            }
-						
-					else if(strcmp(cmd, "wifi") == 0)
-					{
-							if(param == NULL) {
-									printf("WiFi usage: wifi [scan/connect/disconnect/status/send/at/connect_tcp/disconnect_tcp]\r\n");
-							} 
-							else if(strcmp(param, "scan") == 0) {
-									printf("Scanning WiFi networks...\r\n");
-									UART3_SendString("AT+CWLAP\r\n");
-							} 
-							else if(strcmp(param, "connect") == 0) {
-									char* ssid = strtok(NULL, " ");
-									char* password = strtok(NULL, " ");
-									
-									if(ssid != NULL && password != NULL) {
-											strncpy(wifi_ssid, ssid, sizeof(wifi_ssid)-1);
-											strncpy(wifi_password, password, sizeof(wifi_password)-1);
-											
-											char cmd[128];
-											snprintf(cmd, sizeof(cmd), "AT+CWJAP=\"%s\",\"%s\"\r\n", ssid, password);
-											UART3_SendString(cmd);
-											printf("Connecting to %s...\r\n", ssid);
-									} else {
-											printf("Usage: wifi connect [SSID] [PASSWORD]\r\n");
-									}
-							}
-							else if(strcmp(param, "disconnect") == 0) {
-									UART3_SendString("AT+CWQAP\r\n");
-									wifi_connected = false;
-									printf("Disconnecting from WiFi...\r\n");
-							}
-							else if(strcmp(param, "status") == 0) {
-									UART3_SendString("AT+CWJAP?\r\n");
-							}
-							else if(strcmp(param, "send") == 0) {
-									if(!tcp_connected) {
-											printf("TCP not connected!\r\n");
-											return;
-									}
-									
-									char* data = strtok(NULL, "\r\n");
-									if(data != NULL) {
-											if(transparent_mode) {
-													// 透传模式下直接发送数据
-													UART3_SendString(data);
-													printf("Sent in transparent mode: %s\r\n", data);
-											} else {
-													// 非透传模式使用AT命令发送
-													char cmd[256];
-													snprintf(cmd, sizeof(cmd), "AT+CIPSEND=%d\r\n", strlen(data));
-													UART3_SendString(cmd);
-													HAL_Delay(100);
-													UART3_SendString(data);
-													printf("Sent in normal mode: %s\r\n", data);
-											}
-									}
-							}
-							else if(strcmp(param, "at") == 0) {
-									char* at_cmd = strtok(NULL, "\r\n");
-									if(at_cmd != NULL) {
-											char cmd[256];
-											snprintf(cmd, sizeof(cmd), "AT+%s\r\n", at_cmd);
-											UART3_SendString(cmd);
-											printf("Sending AT command: %s\r\n", cmd);
-									}
-							}
-						else if(strcmp(param, "connect_tcp") == 0) {
-								char* ip = strtok(NULL, " ");
-								char* port_str = strtok(NULL, " ");
-								
-								if(ip != NULL) strncpy(server_ip, ip, sizeof(server_ip)-1);
-								if(port_str != NULL) server_port = atoi(port_str);
-								
-								char cmd[64];
-								snprintf(cmd, sizeof(cmd), "AT+CIPSTART=\"TCP\",\"%s\",%d\r\n", 
-												 server_ip, server_port);
-								UART3_SendString(cmd);
-								printf("Connecting to TCP server %s:%d...\r\n", server_ip, server_port);
-								
-								// 等待连接结果
-								uint32_t timeout = HAL_GetTick();
-								while(!tcp_connected && (HAL_GetTick() - timeout < 5000)) {
-										HAL_Delay(100);
-								}
-								
-								if(!tcp_connected) {
-										printf("TCP connection timeout!\n");
-								}else
-								{
-										// TCP连接成功后开启透传模式
-										UART3_SendString("AT+CIPMODE=1\r\n");
-										HAL_Delay(100);
-										UART3_SendString("AT+CIPSEND\r\n");
-										transparent_mode = true;
-										printf("Entered transparent mode\r\n");
-								}
-								
-								
-								
-						}
-						else if(strcmp(param, "disconnect_tcp") == 0) {
-									UART3_SendString("AT+CIPCLOSE\r\n");
-									tcp_connected = false;
-									printf("Disconnecting TCP...\r\n");
-							}
-						else if(strcmp(param, "tcp_debug") == 0) {
-								printf("TCP Connection Status:\n");
-								printf("Server: %s:%d\n", server_ip, server_port);
-								printf("Connected: %s\n", tcp_connected ? "Yes" : "No");
-								printf("Transparent Mode: %s\n", transparent_mode ? "Yes" : "No");
-						}
-						else {
-									printf("Unknown WiFi command: %s\r\n", param);
-						}
-					}
-						
-            else if(strcmp(cmd, "version") == 0)
-            {
-                printf("MoTool V0.1\r\n");
-                printf("Build: " __DATE__ " " __TIME__ "\r\n");
-            }
-            else if(strcmp(cmd, "clear") == 0)
-            {
-                printf("\033[2J\033[H");  
-                printf("MoTool V0.1 - Type 'help' for available commands\r\n");
-            }
-            else if(strcmp(cmd, "sysinfo") == 0)
-            {
-                printf("System Information:\r\n");
-                printf("  CPU: STM32F407 @ %dMHz\r\n", HAL_RCC_GetSysClockFreq()/1000000);
-                printf("  Uptime: %lu ms\r\n", HAL_GetTick());
-            }
-            else
-            {
-                printf("Unknown command: %s\r\n", cmd);
-                printf("Type 'help' for available commands\r\n");
-            }
-            
-
-            printf(">> ");
-            
-
-            rx_pointer = 0;
-            memset(rx_buff, 0, sizeof(rx_buff));
-        }
-        else if(rx_pointer >= sizeof(rx_buff) - 1)
-        {
-
-            printf("\r\nCommand too long!\r\n>> ");
-            rx_pointer = 0;
-            memset(rx_buff, 0, sizeof(rx_buff));
-        }
-    }
-}
-
 
 /* USER CODE END 0 */
 
@@ -439,34 +113,17 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-
-	HAL_UART_Receive_IT(&huart1, &rx_data, 1);
-	HAL_UART_Receive_IT(&huart3, &rx_data, 1);
-	printf("\r\n");
-	printf(".----------------.  .----------------.  .----------------.  .----------------.  .----------------.  .----------------. \r\n");
-	printf("| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |\r\n");
-	printf("| | ____    ____ | || |     ____     | || |  _________   | || |     ____     | || |     ____     | || |   _____      | |\r\n");
-	printf("| ||_   \\  /   _|| || |   .'    `.   | || | |  _   _  |  | || |   .'    `.   | || |   .'    `.   | || |  |_   _|     | |\r\n");
-	printf("| |  |   \\/   |  | || |  /  .--.  \\  | || | |_/ | | \\_|  | || |  /  .--.  \\  | || |  /  .--.  \\  | || |    | |       | |\r\n");
-	printf("| |  | |\\  /| |  | || |  | |    | |  | || |     | |      | || |  | |    | |  | || |  | |    | |  | || |    | |   _   | |\r\n");
-	printf("| | _| |_\\/_| |_ | || |  \\  `--'  /  | || |    _| |_     | || |  \\  `--'  /  | || |  \\  `--'  /  | || |   _| |__/ |  | |\r\n");
-	printf("| ||_____||_____|| || |   `.____.'   | || |   |_____|    | || |   `.____.'   | || |   `.____.'   | || |  |________|  | |\r\n");
-	printf("| |              | || |              | || |              | || |              | || |              | || |              | |\r\n");
-	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\r\n");
-	printf(" '----------------'  '----------------'  '----------------'  '----------------'  '----------------'  '----------------' \r\n");
-	printf("\r\n");
-	printf("                                  Welcome to MoTool V0.1\r\n");
-	printf("                        Multi-function Debug Assistant for STM32\r\n");
-	printf("\r\n");
-	printf(">> ");
-
+	MoRTOS_Init();
+	Module_Register(&CLI_Module);
+	Module_Register(&LED_Module);
+	MoRTOS_Start();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		RX_proc();
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

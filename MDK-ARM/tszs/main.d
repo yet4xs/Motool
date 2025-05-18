@@ -34,3 +34,7 @@ tszs\main.o: ../Inc/gpio.h
 tszs\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 tszs\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 tszs\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+tszs\main.o: ../Inc/MoRTOS.h
+tszs\main.o: ../Inc/MoRTOS_cli.h
+tszs\main.o: ../Inc/MoRTOS_wifi.h
+tszs\main.o: ../Inc/MoRTOS_led.h

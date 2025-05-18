@@ -418,6 +418,26 @@
               <FileType>1</FileType>
               <FilePath>../Src/stm32f4xx_hal_msp.c</FilePath>
             </File>
+            <File>
+              <FileName>MoRTOS.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\MoRTOS.c</FilePath>
+            </File>
+            <File>
+              <FileName>MoRTOS_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\MoRTOS_wifi.c</FilePath>
+            </File>
+            <File>
+              <FileName>MoRTOS_cli.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\MoRTOS_cli.c</FilePath>
+            </File>
+            <File>
+              <FileName>MoRTOS_led.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\MoRTOS_led.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1307,5 +1327,14 @@
     </components>
     <files/>
   </RTE>
+
+  <LayerInfo>
+    <Layers>
+      <Layer>
+        <LayName>tszs</LayName>
+        <LayPrjMark>1</LayPrjMark>
+      </Layer>
+    </Layers>
+  </LayerInfo>
 
 </Project>
